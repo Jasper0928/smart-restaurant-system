@@ -1,0 +1,62 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 843
+  },
+  "selected": true,
+  "name": "Restaurant Reservation Menu",
+  "areas": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 625,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "Make Reservation",
+        "data": "action=reserve&type=new"
+      }
+    },
+    {
+      "bounds": {
+        "x": 625,
+        "y": 0,
+        "width": 625,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "Check Waitlist",
+        "data": "action=waitlist&type=check"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1250,
+        "y": 0,
+        "width": 625,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "My Reservations",
+        "data": "action=reservations&type=list"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1875,
+        "y": 0,
+        "width": 625,
+        "height": 843
+      },
+      "action": {
+        "type": "postback",
+        "label": "Contact Us",
+        "data": "action=contact&type=support"
+      }
+    }
+  ]
+}
