@@ -10,12 +10,14 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ReservationForm from "./pages/ReservationForm";
 import WaitlistForm from "./pages/WaitlistForm";
 import CustomerWaitlist from "./pages/CustomerWaitlist";
+import Menu from "./pages/Menu";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/admin"} component={AdminDashboard} />
+      <Route path={"/menu"} component={Menu} />
       <Route path={"/reserve"} component={ReservationForm} />
       <Route path={"/waitlist"} component={WaitlistForm} />
       <Route path={"/status/:waitlistId"} component={CustomerWaitlist} />

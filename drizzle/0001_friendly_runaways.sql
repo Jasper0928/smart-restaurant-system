@@ -1,0 +1,1 @@
+ALTER TABLE `restaurants` ADD `isWaitlistOpen` integer DEFAULT true NOT NULL;

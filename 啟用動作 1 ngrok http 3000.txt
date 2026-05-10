@@ -1,0 +1,6 @@
+啟用動作：
+1. ngrok http 3000
+2. go to line 設定新的IP (https://developers.line.biz/console/channel/2009898353/messaging-api)
+3. go to LIFF 進去下面的選單，然後更新endpoint URL
+4. npm run dev
+

@@ -7,20 +7,107 @@ import { Clock, Users, UtensilsCrossed, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Lock, Unlock } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AdminDashboard() {
-  const [restaurantId] = useState(1); // TODO: Get from context or URL
+  const [restaurantId] = useState(1);
+  const [isEditingLayout, setIsEditingLayout] = useState(false);
+  const [localTables, setLocalTables] = useState<any[] | null>(null);
+  const [optimisticTables, setOptimisticTables] = useState<any[] | null>(null);
 
   const { data: status, isLoading } = trpc.restaurant.getStatus.useQuery(
     { restaurantId },
-    { refetchInterval: 5000 } // Real-time updates every 5 seconds
+    { refetchInterval: 5000 }
   );
+
+  // When fresh server data arrives, clear the optimistic override
+  useEffect(() => {
+    setOptimisticTables(null);
+  }, [status]);
+
+  // ── 90/120 min dining-time alerts ──────────────────────────────
+  const alertedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const check = () => {
+      const tables = displayTables(status?.tables ?? []);
+      const now = Date.now();
+      for (const t of tables) {
+        if (t.status !== "occupied" || !t.occupiedSince) continue;
+        const since = new Date(t.occupiedSince).getTime();
+        const elapsed = Math.floor((now - since) / 60000); // minutes
+        const key90 = `${t.id}-90`;
+        const key120 = `${t.id}-120`;
+        if (elapsed >= 120 && !alertedRef.current.has(key120)) {
+          alertedRef.current.add(key120);
+          toast.error(`⏰ ${t.tableNumber} 用餐時間已到（120 分鐘）`, {
+            description: `入座時間：${new Date(t.occupiedSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+            duration: 0, // 不自動消失
+          });
+        } else if (elapsed >= 90 && !alertedRef.current.has(key90)) {
+          alertedRef.current.add(key90);
+          toast.warning(`⚠️ ${t.tableNumber} 用餐已達 90 分鐘`, {
+            description: `入座時間：${new Date(t.occupiedSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}，請留意翻桌時間。`,
+            duration: 10000,
+          });
+        }
+        // Reset alert keys when table becomes empty (handled on status change)
+      }
+    };
+    check(); // run immediately
+    const interval = setInterval(check, 60000); // check every minute
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  // Clean up alertedRef entries for tables that are no longer occupied
+  useEffect(() => {
+    const occupiedIds = new Set(
+      (status?.tables ?? [])
+        .filter((t: any) => t.status === "occupied")
+        .flatMap((t: any) => [`${t.id}-90`, `${t.id}-120`])
+    );
+    for (const key of Array.from(alertedRef.current)) {
+      if (!occupiedIds.has(key)) alertedRef.current.delete(key);
+    }
+  }, [status]);
+
+  // Derive display tables: prefer optimistic override, fallback to server data
+  const displayTables = (tables: any[]) =>
+    tables.map((t) => {
+      const override = optimisticTables?.find((o: any) => o.id === t.id);
+      return override ?? t;
+    });
+
+  const toggleTableMutation = trpc.table.toggleStatus.useMutation({
+    onMutate: ({ tableId }) => {
+      // Optimistically flip the status immediately
+      const serverTables = status?.tables ?? [];
+      setOptimisticTables(
+        serverTables.map((t: any) =>
+          t.id === tableId
+            ? { ...t, status: t.status === "empty" ? "occupied" : "empty", occupiedSince: t.status === "empty" ? new Date().toISOString() : null }
+            : t
+        )
+      );
+    },
+    onError: (e) => {
+      setOptimisticTables(null); // revert on error
+      alert(`切換桌位失敗: ${e.message}`);
+    },
+  });
+
+
+  const savePositionMutation = trpc.table.savePosition.useMutation({
+    onError: (e) => alert(`儲存位置失敗: ${e.message}`)
+  });
 
   const notifyMutation = trpc.waitlist.notify.useMutation({
     onSuccess: () => {
-      // alert("通知已成功發送"); // Optional: you can add toast notification here
+      // alert("通知已成功發送");
     },
     onError: (error) => {
       alert(`發送通知失敗: ${error.message}`);
@@ -33,6 +120,15 @@ export default function AdminDashboard() {
     },
     onError: (error) => {
       alert(`更新狀態失敗: ${error.message}`);
+    }
+  });
+
+  const toggleWaitlistMutation = trpc.restaurant.toggleWaitlist.useMutation({
+    onSuccess: () => {
+      // refetch will automatically happen
+    },
+    onError: (error) => {
+      alert(`切換候位狀態失敗: ${error.message}`);
     }
   });
 
@@ -178,9 +274,22 @@ export default function AdminDashboard() {
           {/* Waitlist Tab */}
           <TabsContent value="waitlist" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>目前候位</CardTitle>
-                <CardDescription>即時追蹤排隊狀態與顧客資訊</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>目前候位</CardTitle>
+                  <CardDescription>即時追蹤排隊狀態與顧客資訊</CardDescription>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="waitlist-mode" className={status.restaurant?.isWaitlistOpen ? "text-primary font-bold" : "text-muted-foreground"}>
+                    {status.restaurant?.isWaitlistOpen ? "接客中" : "已停止候位"}
+                  </Label>
+                  <Switch
+                    id="waitlist-mode"
+                    checked={status.restaurant?.isWaitlistOpen}
+                    onCheckedChange={(checked) => toggleWaitlistMutation.mutate({ restaurantId, isOpen: checked })}
+                    disabled={toggleWaitlistMutation.isPending}
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 {status.waitlist.length === 0 ? (
@@ -252,44 +361,148 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
-          {/* Tables Tab */}
+
+          {/* Tables Tab — 12×5 free-position grid */}
           <TabsContent value="tables" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>桌位狀態</CardTitle>
-                <CardDescription>視覺化管理店內空桌與用餐狀況</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>桌位狀態</CardTitle>
+                  <CardDescription>
+                    {isEditingLayout
+                      ? "編輯中：將桌子拖曳到任意格子，完成後按「確認鎖定」"
+                      : "點擊桌子切換空桌／用餐中；按「調整桌位」可自由移動位置"}
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isEditingLayout ? (
+                    <>
+                      <Button size="sm" onClick={() => { setIsEditingLayout(false); setLocalTables(null); }} disabled={savePositionMutation.isPending}>
+                        <Lock className="w-3 h-3 mr-1" />確認鎖定
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setIsEditingLayout(false); setLocalTables(null); }}>
+                        取消
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setLocalTables([...(status?.tables ?? [])]);
+                      setIsEditingLayout(true);
+                    }}>
+                      <Unlock className="w-3 h-3 mr-1" />調整桌位
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {status.tables.map(table => (
-                    <div
-                      key={table.id}
-                      className={`p-4 rounded-lg border-2 text-center cursor-pointer transition ${
-                        table.status === "empty"
-                          ? "bg-green-50 border-green-300 hover:bg-green-100"
-                          : table.status === "occupied"
-                          ? "bg-red-50 border-red-300 hover:bg-red-100"
-                          : table.status === "reserved"
-                          ? "bg-blue-50 border-blue-300 hover:bg-blue-100"
-                          : "bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
-                      }`}
-                    >
-                      <p className="font-bold text-sm">{table.tableNumber}</p>
-                      <p className="text-xs text-muted-foreground">{table.maxSeats} 人座</p>
-                      <Badge
-                        variant="outline"
-                        className="mt-2 text-xs"
+                {/* 12 × 5 grid — centered, rectangular cells */}
+                <div className="flex justify-center overflow-x-auto">
+                <div
+                  className="relative border border-border/40 rounded-xl bg-muted/20 overflow-hidden inline-grid"
+                  style={{
+                    gridTemplateColumns: "repeat(12, 76px)",
+                    gridTemplateRows: "repeat(5, 64px)",
+                    gap: "4px",
+                    padding: "6px",
+                  }}
+                >
+                  {/* Hidden cell drop targets */}
+                  {Array.from({ length: 60 }).map((_, idx) => {
+                    const col = idx % 12;
+                    const row = Math.floor(idx / 12);
+                    const tableSrc = isEditingLayout
+                      ? (localTables ?? [])
+                      : displayTables(status?.tables ?? []);
+                    const tableHere = tableSrc.find((t: any) => t.gridCol === col && t.gridRow === row);
+                    return (
+                      <div
+                        key={`cell-${col}-${row}`}
+                        style={{ gridColumn: col + 1, gridRow: row + 1 }}
+                        className={[
+                          "flex items-center justify-center rounded-lg transition-all",
+                          isEditingLayout
+                            ? "border border-dashed border-primary/20 hover:border-primary/60 hover:bg-primary/5"
+                            : "",
+                        ].join(" ")}
+                        onDragOver={(e) => { if (isEditingLayout) e.preventDefault(); }}
+                        onDrop={(e) => {
+                          if (!isEditingLayout) return;
+                          e.preventDefault();
+                          const tableId = parseInt(e.dataTransfer.getData("tableId"));
+                          setLocalTables(prev =>
+                            (prev ?? []).map((t: any) =>
+                              t.id === tableId ? { ...t, gridCol: col, gridRow: row } : t
+                            )
+                          );
+                          savePositionMutation.mutate({ tableId, gridCol: col, gridRow: row });
+                        }}
                       >
-                        {table.status === "empty" ? "空桌" : table.status === "occupied" ? "用餐中" : table.status === "reserved" ? "已預訂" : "清潔中"}
-                      </Badge>
-                    </div>
-                  ))}
+                        {tableHere && (
+                          <div
+                            draggable={isEditingLayout}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("tableId", String(tableHere.id));
+                            }}
+                            onClick={() => {
+                              if (!isEditingLayout) toggleTableMutation.mutate({ tableId: tableHere.id });
+                            }}
+                            title={tableHere.status === "occupied" && tableHere.occupiedSince
+                              ? `用餐中・${new Date(tableHere.occupiedSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} 起`
+                              : "空桌"}
+                            className={[
+                              "w-full h-full rounded-lg flex flex-col items-center justify-center select-none transition-all shadow-sm px-1",
+                              tableHere.status === "empty"
+                                ? "bg-emerald-400"
+                                : (() => {
+                                    if (!tableHere.occupiedSince) return "bg-rose-400";
+                                    const mins = Math.floor((Date.now() - new Date(tableHere.occupiedSince).getTime()) / 60000);
+                                    return mins >= 120 ? "bg-red-700" : mins >= 90 ? "bg-orange-500" : "bg-rose-400";
+                                  })(),
+                              isEditingLayout
+                                ? "cursor-grab active:cursor-grabbing ring-2 ring-white/60 ring-offset-1 scale-95"
+                                : tableHere.status === "empty"
+                                ? "cursor-pointer hover:bg-emerald-500 hover:shadow-md hover:scale-105"
+                                : "cursor-pointer hover:brightness-110 hover:shadow-md",
+                            ].join(" ")}
+                          >
+                            <span className="text-white font-bold text-[11px] leading-tight drop-shadow-sm tracking-wide">{tableHere.tableNumber}</span>
+                            {tableHere.status === "occupied" && tableHere.occupiedSince ? (
+                              <>
+                                <span className="text-white text-[9px] leading-tight font-medium mt-0.5">
+                                  {new Date(tableHere.occupiedSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                                <span className="text-white/80 text-[8px] leading-tight">
+                                  {(() => {
+                                    const m = Math.floor((Date.now() - new Date(tableHere.occupiedSince).getTime()) / 60000);
+                                    return `${m}min`;
+                                  })()}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                </div>{/* end overflow-x-auto */}
+
+                {/* Legend */}
+                <div className="mt-3 flex items-center gap-5 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-emerald-400 inline-block shadow-sm"></span>空桌
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-rose-400 inline-block shadow-sm"></span>用餐中
+                  </span>
+                  <span className="ml-auto text-xs">
+                    共 {status?.tables?.length ?? 0} 張桌 · 空桌 {displayTables(status?.tables ?? []).filter((t: any) => t.status === "empty").length} 張
+                  </span>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Reservations Tab */}
           <TabsContent value="reservations" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">

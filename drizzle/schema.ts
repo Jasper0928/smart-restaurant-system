@@ -45,6 +45,7 @@ export const restaurants = sqliteTable("restaurants", {
     avgServiceTime: number; // in minutes
   }>().notNull(),
   peakHourMultiplier: real("peakHourMultiplier").default(1.2).notNull(),
+  isWaitlistOpen: integer("isWaitlistOpen", { mode: "boolean" }).default(true).notNull(),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
@@ -58,6 +59,9 @@ export const tables = sqliteTable("tables", {
   tableNumber: text("tableNumber").notNull(),
   maxSeats: integer("maxSeats", { mode: "number" }).notNull(),
   status: text("status", { enum: ["empty", "occupied", "cleaning", "reserved"] }).default("empty").notNull(),
+  sortOrder: integer("sortOrder", { mode: "number" }).default(0).notNull(),
+  gridCol: integer("gridCol", { mode: "number" }).default(0).notNull(),
+  gridRow: integer("gridRow", { mode: "number" }).default(0).notNull(),
   occupiedSince: integer("occupiedSince", { mode: "timestamp_ms" }),
   reservedUntil: integer("reservedUntil", { mode: "timestamp_ms" }),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),

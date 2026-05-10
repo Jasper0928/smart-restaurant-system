@@ -1,7 +1,7 @@
 import cron from "node-cron";
-import { eq, and, between, isNull, ne } from "drizzle-orm";
+import { eq, and, between, isNull, ne, notInArray } from "drizzle-orm";
 import { getDb } from "./db";
-import { reservations, customers, restaurants } from "../drizzle/schema";
+import { reservations, customers, restaurants, waitlist, tables } from "../drizzle/schema";
 import { pushLineMessage, createReservationConfirmationPromptMessage } from "./line";
 
 export function initScheduler() {
@@ -65,6 +65,31 @@ export function initScheduler() {
             console.error(`[Scheduler] Failed to send to ${req.customer.name}:`, error);
           }
         }
+      }
+
+      // Re-open waitlist at 8:00 AM (08:00)
+      if (now.getHours() === 8) {
+        console.log(`[Scheduler] 8:00 AM - Reopening waitlists for all restaurants...`);
+        await db.update(restaurants).set({ isWaitlistOpen: true });
+        console.log(`[Scheduler] Waitlists reopened.`);
+      }
+
+      // Run waitlist cleanup at 11:00 PM (23:00)
+      if (now.getHours() === 23) {
+        console.log(`[Scheduler] 11:00 PM - Clearing all active waitlists...`);
+        // We consider active waitlists as anything not already seated or expired
+        const activeStates = ["pending", "notified", "coming", "reserved_5min", "cancelled"];
+        
+        await db.update(waitlist)
+          .set({ notifiedStatus: "expired" })
+          .where(notInArray(waitlist.notifiedStatus, ["seated", "expired"] as any));
+          
+        console.log(`[Scheduler] Waitlist cleared.`);
+
+        // Also reset all tables to empty
+        console.log(`[Scheduler] 11:00 PM - Resetting all tables to empty...`);
+        await db.update(tables).set({ status: "empty", occupiedSince: null });
+        console.log(`[Scheduler] All tables reset.`);
       }
     } catch (error) {
       console.error("[Scheduler] Error running cron job:", error);

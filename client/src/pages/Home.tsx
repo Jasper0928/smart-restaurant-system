@@ -50,9 +50,11 @@ export default function Home() {
               </Button>
             </Link>
 
-            <Button size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 rounded-full bg-transparent">
-              查看菜單
-            </Button>
+            <Link href="/menu">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 rounded-full bg-transparent hover:bg-primary/5 border-primary/20 hover:border-primary/50 transition-all">
+                查看菜單
+              </Button>
+            </Link>
           </div>
         </div>
 

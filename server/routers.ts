@@ -22,7 +22,7 @@ import {
 } from "./db";
 import { generateQRCode, generateQRCodeDataUrl } from "./qrcode";
 import { calculateComprehensiveEWT, getAvailableTableCount } from "./algorithms";
-import { waitlist, reservations, customers, restaurants } from "../drizzle/schema";
+import { waitlist, reservations, customers, restaurants, tables } from "../drizzle/schema";
 import { lineRouter } from "./routers/line";
 import { pushLineMessage, createReservationConfirmationMessage, createWaitlistConfirmationMessage, createSeatingNotificationMessage, createReservationReminderMessage } from "./line";
 
@@ -74,6 +74,64 @@ export const appRouter = router({
           },
         };
       }),
+
+    toggleWaitlist: protectedProcedure
+      .input(
+        z.object({
+          restaurantId: z.number(),
+          isOpen: z.boolean(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(restaurants)
+          .set({ isWaitlistOpen: input.isOpen })
+          .where(eq(restaurants.id, input.restaurantId));
+        return { success: true };
+      }),
+  }),
+
+  // Table Management
+  table: router({
+    toggleStatus: protectedProcedure
+      .input(z.object({ tableId: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [current] = await db.select().from(tables).where(eq(tables.id, input.tableId)).limit(1);
+        if (!current) throw new Error("找不到此桌座");
+        const newStatus = current.status === "empty" ? "occupied" : "empty";
+        await db.update(tables)
+          .set({ status: newStatus, occupiedSince: newStatus === "occupied" ? new Date() : null })
+          .where(eq(tables.id, input.tableId));
+        return { success: true, newStatus };
+      }),
+
+    reorder: protectedProcedure
+      .input(z.object({
+        // Array of { id, sortOrder } to update
+        order: z.array(z.object({ id: z.number(), sortOrder: z.number() }))
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        for (const item of input.order) {
+          await db.update(tables)
+            .set({ sortOrder: item.sortOrder })
+            .where(eq(tables.id, item.id));
+        }
+        return { success: true };
+      }),
+
+    savePosition: protectedProcedure
+      .input(z.object({ tableId: z.number(), gridCol: z.number().min(0).max(11), gridRow: z.number().min(0).max(4) }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(tables).set({ gridCol: input.gridCol, gridRow: input.gridRow }).where(eq(tables.id, input.tableId));
+        return { success: true };
+      }),
   }),
 
   // Waitlist Management
@@ -98,6 +156,13 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
 
+        const restaurant = await getRestaurant(input.restaurantId);
+        if (!restaurant) throw new Error("找不到餐廳");
+        
+        if (!restaurant.isWaitlistOpen) {
+          throw new Error("今日已停止接客，我們將於明日上午8:00重新開放候位。如有急需請來電洽詢。");
+        }
+
         const insertResult = await db.insert(waitlist).values({
           restaurantId: input.restaurantId,
           customerId: customer.id,
@@ -110,7 +175,6 @@ export const appRouter = router({
         const lineUserIdToNotify = input.lineUserId || customer.lineUid;
         if (lineUserIdToNotify) {
           try {
-            const restaurant = await getRestaurant(input.restaurantId);
             if (restaurant) {
               const message = createWaitlistConfirmationMessage(
                 restaurant.branchName,
@@ -199,28 +263,6 @@ export const appRouter = router({
         }
 
         await updateWaitlistStatus(input.waitlistId, "notified", (entry.contactCount || 0) + 1);
-        return { success: true };
-      }),
-  }),
-
-  // Table Management
-  table: router({
-    updateStatus: protectedProcedure
-      .input(
-        z.object({
-          tableId: z.number(),
-          status: z.enum(["empty", "occupied", "cleaning", "reserved"]),
-          occupiedSince: z.date().optional(),
-          reservedUntil: z.date().optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        await updateTableStatus(
-          input.tableId,
-          input.status,
-          input.occupiedSince,
-          input.reservedUntil
-        );
         return { success: true };
       }),
   }),

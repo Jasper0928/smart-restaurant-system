@@ -23,7 +23,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useLiff } from "@/contexts/LiffContext";
-import { Clock, Users, ArrowLeft } from "lucide-react";
+import { Clock, Users, ArrowLeft, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect } from "react";
 
@@ -95,92 +95,108 @@ export default function WaitlistForm() {
           </p>
         </div>
 
-        <Card className="border-border/50 shadow-sm overflow-hidden">
-          <div className="bg-primary h-1 w-full" />
-          <CardHeader>
-            <CardTitle>候位資料填寫</CardTitle>
-            <CardDescription>
-              請留下您的基本資料，快到您的號碼時，我們會透過 LINE 通知您！
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                
-                <div className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>聯絡人姓名</FormLabel>
-                        <FormControl>
-                          <Input placeholder="王小明" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+        {status?.restaurant?.isWaitlistOpen === false ? (
+          <Card className="border-destructive shadow-sm overflow-hidden mt-6">
+            <div className="bg-destructive h-1 w-full" />
+            <CardHeader className="text-center pb-4">
+              <CardTitle className="text-xl text-destructive flex items-center justify-center gap-2">
+                <AlertCircle className="w-6 h-6" />
+                已停止候位
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center text-muted-foreground pb-8">
+              <p>今日已停止接客，我們將於明日上午 8:00 重新開放現場候位。</p>
+              <p className="mt-2">如有急需請直接來電洽詢，謝謝您的支持！</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-border/50 shadow-sm overflow-hidden">
+            <div className="bg-primary h-1 w-full" />
+            <CardHeader>
+              <CardTitle>候位資料填寫</CardTitle>
+              <CardDescription>
+                請留下您的基本資料，快到您的號碼時，我們會透過 LINE 通知您！
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>聯絡人姓名</FormLabel>
+                          <FormControl>
+                            <Input placeholder="王小明" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>聯絡電話</FormLabel>
-                        <FormControl>
-                          <Input placeholder="0912345678" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>聯絡電話</FormLabel>
+                          <FormControl>
+                            <Input placeholder="0912345678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name="partySize"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>用餐人數</FormLabel>
-                        <FormControl>
-                          <Select value={field.value.toString()} onValueChange={field.onChange}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20].map(size => (
-                                <SelectItem key={size} value={size.toString()}>
-                                  {size} 人
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                    <FormField
+                      control={form.control}
+                      name="partySize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>用餐人數</FormLabel>
+                          <FormControl>
+                            <Select value={field.value.toString()} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20].map(size => (
+                                  <SelectItem key={size} value={size.toString()}>
+                                    {size} 人
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-                <div className="bg-primary/5 border border-primary/10 rounded-lg p-4 text-sm text-left">
-                  <ul className="list-disc list-outside ml-4 space-y-1 text-muted-foreground">
-                    <li>號碼保留 10 分鐘，過號視同放棄。</li>
-                    <li>人數到齊後才會安排入座。</li>
-                    <li>用餐時間為兩個小時。</li>
-                  </ul>
-                </div>
+                  <div className="bg-primary/5 border border-primary/10 rounded-lg p-4 text-sm text-left">
+                    <ul className="list-disc list-outside ml-4 space-y-1 text-muted-foreground">
+                      <li>號碼保留 10 分鐘，過號視同放棄。</li>
+                      <li>人數到齊後才會安排入座。</li>
+                      <li>用餐時間為兩個小時。</li>
+                    </ul>
+                  </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={createWaitlist.isPending}
-                >
-                  {createWaitlist.isPending ? "處理中..." : "確認抽號"}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={createWaitlist.isPending}
+                  >
+                    {createWaitlist.isPending ? "處理中..." : "確認抽號"}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
