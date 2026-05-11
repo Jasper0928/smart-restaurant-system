@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Users, UtensilsCrossed, AlertCircle } from "lucide-react";
+import { Clock, Users, UtensilsCrossed, AlertCircle, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,6 +131,23 @@ export default function AdminDashboard() {
       alert(`切換候位狀態失敗: ${error.message}`);
     }
   });
+
+  // Walk-in reserve ratio settings
+  const { data: ratioData } = trpc.settings.getWalkInRatio.useQuery({ restaurantId });
+  const [localRatio, setLocalRatio] = useState<number | null>(null);
+  const displayRatio = localRatio ?? ratioData?.walkInReserveRatio ?? 0.40;
+  const utils = trpc.useUtils();
+  const updateRatioMutation = trpc.settings.updateWalkInRatio.useMutation({
+    onSuccess: () => {
+      toast.success("保留比例已更新");
+      utils.settings.getWalkInRatio.invalidate();
+    },
+    onError: (err) => alert(`更新保留比例失敗: ${err.message}`),
+  });
+  // Sync localRatio when server data arrives
+  useEffect(() => {
+    if (ratioData) setLocalRatio(ratioData.walkInReserveRatio);
+  }, [ratioData]);
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const { data: reservationsList = [], refetch: refetchReservations } = trpc.reservation.listByDate.useQuery(
@@ -265,10 +282,13 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="waitlist" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="waitlist">候位看版</TabsTrigger>
             <TabsTrigger value="tables">桌位狀態</TabsTrigger>
             <TabsTrigger value="reservations">訂位管理</TabsTrigger>
+            <TabsTrigger value="settings">
+              <Settings className="w-3.5 h-3.5 mr-1" />設定
+            </TabsTrigger>
           </TabsList>
 
           {/* Waitlist Tab */}
@@ -614,6 +634,80 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>訂位容量設定</CardTitle>
+                <CardDescription>調整現場客人保留桌位比例，影響線上可訂位桌數</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">現場客人保留比例</p>
+                      <p className="text-sm text-muted-foreground">
+                        保留 {Math.round(displayRatio * 100)}% 的桌位給現場候位客人，
+                        剩餘 {Math.round((1 - displayRatio) * 100)}% 開放線上訂位。
+                      </p>
+                    </div>
+                    <span className="text-2xl font-bold text-primary">{Math.round(displayRatio * 100)}%</span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={Math.round(displayRatio * 100)}
+                    onChange={(e) => setLocalRatio(parseInt(e.target.value) / 100)}
+                    className="w-full accent-primary h-2 rounded-full cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>0% (全部開放訂位)</span>
+                    <span>100% (不開放訂位)</span>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">總桌數</span>
+                      <span className="font-medium">{status.stats.totalTables} 桌</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">可線上訂位</span>
+                      <span className="font-medium text-primary">
+                        {Math.floor(status.stats.totalTables * (1 - displayRatio))} 桌
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">保留給現場</span>
+                      <span className="font-medium">
+                        {status.stats.totalTables - Math.floor(status.stats.totalTables * (1 - displayRatio))} 桌
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">每桌座位</span>
+                      <span className="font-medium">2 人</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">用餐時間</span>
+                      <span className="font-medium">2 小時</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    disabled={updateRatioMutation.isPending || displayRatio === (ratioData?.walkInReserveRatio ?? 0.40)}
+                    onClick={() => updateRatioMutation.mutate({ restaurantId, walkInReserveRatio: displayRatio })}
+                  >
+                    {updateRatioMutation.isPending ? "儲存中..." : "儲存設定"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

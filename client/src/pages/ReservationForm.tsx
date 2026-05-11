@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import QRCodeDisplay from "@/components/QRCodeDisplay";
 import { useLiff } from "@/contexts/LiffContext";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 const reservationSchema = z.object({
   name: z.string().min(2, "名字必須至少兩個字"),
@@ -43,6 +44,41 @@ export default function ReservationForm() {
     },
   });
 
+  const watchedDate = form.watch("date");
+  const watchedTime = form.watch("time");
+  const watchedPartySize = form.watch("partySize");
+
+  // Build scheduledAt from watched date and time
+  const scheduledAt = useMemo(() => {
+    if (!watchedDate || !watchedTime) return null;
+    const [year, month, day] = watchedDate.split("-");
+    const [hours, minutes] = watchedTime.split(":");
+    if (!year || !month || !day || !hours || !minutes) return null;
+    return new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes)
+    );
+  }, [watchedDate, watchedTime]);
+
+  // Check availability whenever date/time/partySize changes
+  const { data: availability, isLoading: isCheckingAvailability } =
+    trpc.reservation.checkAvailability.useQuery(
+      {
+        restaurantId,
+        scheduledAt: scheduledAt!,
+        partySize: Number(watchedPartySize) || 2,
+      },
+      {
+        enabled: !!scheduledAt && !!watchedPartySize,
+        staleTime: 10_000, // cache for 10s
+      }
+    );
+
+  const isFull = availability && !availability.available;
+
   const createReservation = trpc.reservation.create.useMutation({
     onSuccess: (data) => {
       setQrCode(data.qrCode);
@@ -56,16 +92,7 @@ export default function ReservationForm() {
   });
 
   const onSubmit: SubmitHandler<ReservationFormData> = async (data) => {
-    const [year, month, day] = data.date.split("-");
-    const [hours, minutes] = data.time.split(":");
-    const scheduledAt = new Date(
-      parseInt(year),
-      parseInt(month) - 1,
-      parseInt(day),
-      parseInt(hours),
-      parseInt(minutes)
-    );
-
+    if (!scheduledAt) return;
     createReservation.mutate({
       restaurantId,
       name: data.name,
@@ -127,6 +154,7 @@ export default function ReservationForm() {
               <li>平日座位保留 10 分鐘，假日座位時間不保留。</li>
               <li>逾時現場候位，人數到齊才入座</li>
               <li>用餐時間為兩個小時。</li>
+              <li>每桌最多 2 人，超過 2 人將自動安排多桌。</li>
             </ul>
           </div>
         </div>
@@ -205,9 +233,9 @@ export default function ReservationForm() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20].map(size => (
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map(size => (
                                   <SelectItem key={size} value={size.toString()}>
-                                    {size} 人
+                                    {size} 人{size > 2 ? ` (${Math.ceil(size / 2)} 桌)` : ""}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -262,16 +290,52 @@ export default function ReservationForm() {
                       </FormItem>
                     )}
                   />
+
+                  {/* Availability indicator */}
+                  {scheduledAt && availability && (
+                    <div
+                      className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                        isFull
+                          ? "bg-destructive/10 text-destructive border border-destructive/20"
+                          : "bg-green-500/10 text-green-700 border border-green-500/20"
+                      }`}
+                    >
+                      {isFull ? (
+                        <>
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>
+                            該時段桌位已滿（可訂 {availability.maxReservableTables} 桌，已佔{" "}
+                            {availability.usedTables} 桌）。請選擇其他時段。
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>
+                            此時段尚有空位（剩餘 {availability.remainingTables} 桌可訂）
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {scheduledAt && isCheckingAvailability && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg text-sm bg-muted text-muted-foreground">
+                      <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin shrink-0" />
+                      <span>正在確認該時段空位...</span>
+                    </div>
+                  )}
                 </div>
-
-
 
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={createReservation.isPending}
+                  disabled={createReservation.isPending || !!isFull}
                 >
-                  {createReservation.isPending ? "訂位處理中..." : "確認預約"}
+                  {createReservation.isPending
+                    ? "訂位處理中..."
+                    : isFull
+                      ? "該時段已滿，請選擇其他時段"
+                      : "確認預約"}
                 </Button>
               </form>
             </Form>

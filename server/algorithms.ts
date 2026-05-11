@@ -109,3 +109,80 @@ export function calculateComprehensiveEWT(
     peakHourMultiplier: peakMultiplier,
   });
 }
+
+// ==================== Reservation Capacity Algorithm ====================
+
+const DINING_DURATION_HOURS = 2;
+
+/**
+ * Calculate how many tables a party needs.
+ * Each table seats at most 2 people; 1 person still occupies 1 table.
+ */
+export function calculateTablesNeeded(partySize: number): number {
+  return Math.ceil(partySize / 2);
+}
+
+/**
+ * Calculate the maximum number of tables available for online reservations.
+ * Deducts the walk-in reserve ratio from total tables.
+ */
+export function getMaxReservableTables(
+  totalTables: number,
+  walkInReserveRatio: number
+): number {
+  return Math.floor(totalTables * (1 - walkInReserveRatio));
+}
+
+/**
+ * Given a target scheduledAt, count how many tables are already reserved
+ * by overlapping reservations. Two reservations overlap when their
+ * 2-hour dining windows intersect.
+ *
+ * For a new reservation at time T occupying [T, T+2h),
+ * any existing reservation at time E occupying [E, E+2h)
+ * overlaps iff E < T+2h AND T < E+2h  ⟹  |E - T| < 2h
+ * So the conflict window is (T - 2h, T + 2h) exclusive endpoints.
+ */
+export function getConflictWindow(scheduledAt: Date): { start: Date; end: Date } {
+  const ms = DINING_DURATION_HOURS * 60 * 60 * 1000;
+  return {
+    start: new Date(scheduledAt.getTime() - ms),
+    end: new Date(scheduledAt.getTime() + ms),
+  };
+}
+
+export interface ReservationAvailability {
+  available: boolean;
+  tablesNeeded: number;
+  usedTables: number;
+  maxReservableTables: number;
+  remainingTables: number;
+}
+
+/**
+ * Check whether a new reservation can be made for the given time and party size.
+ * overlappingReservations should be pre-queried: all pending/confirmed reservations
+ * whose scheduledAt falls within the conflict window.
+ */
+export function checkAvailability(
+  totalTables: number,
+  walkInReserveRatio: number,
+  partySize: number,
+  overlappingPartySizes: number[]
+): ReservationAvailability {
+  const maxReservableTables = getMaxReservableTables(totalTables, walkInReserveRatio);
+  const usedTables = overlappingPartySizes.reduce(
+    (sum, ps) => sum + calculateTablesNeeded(ps),
+    0
+  );
+  const tablesNeeded = calculateTablesNeeded(partySize);
+  const remainingTables = maxReservableTables - usedTables;
+
+  return {
+    available: remainingTables >= tablesNeeded,
+    tablesNeeded,
+    usedTables,
+    maxReservableTables,
+    remainingTables: Math.max(0, remainingTables),
+  };
+}

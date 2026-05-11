@@ -22,9 +22,10 @@ import {
   getReservationsWithCustomer,
   getWaitlistEntryWithCustomer,
   getReservationsByDateWithCustomer,
+  getOverlappingReservations,
 } from "./db";
 import { generateQRCode, generateQRCodeDataUrl } from "./qrcode";
-import { calculateComprehensiveEWT, getAvailableTableCount } from "./algorithms";
+import { calculateComprehensiveEWT, getAvailableTableCount, getConflictWindow, checkAvailability } from "./algorithms";
 import { waitlist, reservations, customers, restaurants, tables } from "../drizzle/schema";
 import { lineRouter } from "./routers/line";
 import { pushLineMessage, createReservationConfirmationMessage, createWaitlistConfirmationMessage, createSeatingNotificationMessage, createReservationReminderMessage } from "./line";
@@ -303,6 +304,26 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        // ── Capacity check ──
+        const restaurant = await getRestaurant(input.restaurantId);
+        if (!restaurant) throw new Error("找不到餐廳");
+
+        const allTables = await getTablesByRestaurant(input.restaurantId);
+        const totalTables = allTables.length;
+        const walkInRatio = parseFloat(restaurant.walkInReserveRatio?.toString() ?? "0.40");
+
+        const { start, end } = getConflictWindow(input.scheduledAt);
+        const overlapping = await getOverlappingReservations(input.restaurantId, start, end);
+        const overlappingPartySizes = overlapping.map(r => r.partySize);
+
+        const availability = checkAvailability(totalTables, walkInRatio, input.partySize, overlappingPartySizes);
+        if (!availability.available) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `該時段桌位已滿（可訂 ${availability.maxReservableTables} 桌，已佔 ${availability.usedTables} 桌，您需要 ${availability.tablesNeeded} 桌）。請選擇其他時段。`,
+          });
+        }
+
         const customer = await getOrCreateCustomer(input.phone, input.name, input.email, input.lineUserId);
         const qrCode = generateQRCode();
         const qrCodeUrl = await generateQRCodeDataUrl(qrCode);
@@ -419,6 +440,57 @@ export const appRouter = router({
           .where(eq(reservations.id, res.reservation.id));
 
         return { success: true };
+      }),
+
+    checkAvailability: publicProcedure
+      .input(
+        z.object({
+          restaurantId: z.number(),
+          scheduledAt: z.date(),
+          partySize: z.number().min(1).max(20),
+        })
+      )
+      .query(async ({ input }) => {
+        const restaurant = await getRestaurant(input.restaurantId);
+        if (!restaurant) throw new Error("找不到餐廳");
+
+        const allTables = await getTablesByRestaurant(input.restaurantId);
+        const totalTables = allTables.length;
+        const walkInRatio = parseFloat(restaurant.walkInReserveRatio?.toString() ?? "0.40");
+
+        const { start, end } = getConflictWindow(input.scheduledAt);
+        const overlapping = await getOverlappingReservations(input.restaurantId, start, end);
+        const overlappingPartySizes = overlapping.map(r => r.partySize);
+
+        return checkAvailability(totalTables, walkInRatio, input.partySize, overlappingPartySizes);
+      }),
+  }),
+
+  // Restaurant Settings
+  settings: router({
+    updateWalkInRatio: protectedProcedure
+      .input(
+        z.object({
+          restaurantId: z.number(),
+          walkInReserveRatio: z.number().min(0).max(1),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(restaurants)
+          .set({ walkInReserveRatio: input.walkInReserveRatio, updatedAt: new Date() })
+          .where(eq(restaurants.id, input.restaurantId));
+        return { success: true };
+      }),
+
+    getWalkInRatio: publicProcedure
+      .input(z.object({ restaurantId: z.number() }))
+      .query(async ({ input }) => {
+        const restaurant = await getRestaurant(input.restaurantId);
+        return {
+          walkInReserveRatio: restaurant ? parseFloat(restaurant.walkInReserveRatio?.toString() ?? "0.40") : 0.40,
+        };
       }),
   }),
 });

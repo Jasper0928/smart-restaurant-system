@@ -11,5 +11,6 @@ export const ENV = {
   lineChannelSecret: process.env.LINE_CHANNEL_SECRET ?? "",
   lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
   adminPassword: process.env.ADMIN_PASSWORD ?? "neocafe2024",
+  walkInReserveRatio: parseFloat(process.env.WALK_IN_RESERVE_RATIO ?? "0.40"),
 };
 

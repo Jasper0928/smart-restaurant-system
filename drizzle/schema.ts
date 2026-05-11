@@ -45,6 +45,7 @@ export const restaurants = sqliteTable("restaurants", {
     avgServiceTime: number; // in minutes
   }>().notNull(),
   peakHourMultiplier: real("peakHourMultiplier").default(1.2).notNull(),
+  walkInReserveRatio: real("walkInReserveRatio").default(0.40).notNull(),
   isWaitlistOpen: integer("isWaitlistOpen", { mode: "boolean" }).default(true).notNull(),
   createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),

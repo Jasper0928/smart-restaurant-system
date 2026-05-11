@@ -286,6 +286,31 @@ export async function getPendingReservations(restaurantId: number) {
     );
 }
 
+/**
+ * Get all active (pending/confirmed) reservations whose 2-hour dining window
+ * overlaps with the conflict window [windowStart, windowEnd).
+ */
+export async function getOverlappingReservations(
+  restaurantId: number,
+  windowStart: Date,
+  windowEnd: Date
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // A reservation at time E overlaps if E > windowStart AND E < windowEnd
+  return db
+    .select({ partySize: reservations.partySize })
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.restaurantId, restaurantId),
+        inArray(reservations.status, ["pending", "confirmed"]),
+        between(reservations.scheduledAt, windowStart, windowEnd)
+      )
+    );
+}
+
 export async function getActiveReservationForCustomer(customerId: number) {
   const db = await getDb();
   if (!db) return null;
