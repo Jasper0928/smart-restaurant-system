@@ -42,7 +42,8 @@ export default function AdminLogin() {
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
       toast.success("登入成功！歡迎回來。");
-      navigate("/admin");
+      // Use full page navigation so the server sets & reads the cookie fresh
+      window.location.href = "/admin";
     },
     onError: (error) => {
       toast.error(error.message || "登入失敗，請確認密碼是否正確。");

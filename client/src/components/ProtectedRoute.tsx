@@ -12,15 +12,21 @@ interface ProtectedRouteProps {
  */
 export default function ProtectedRoute({ component: Component }: ProtectedRouteProps) {
   const [, navigate] = useLocation();
-  const { data: user, isLoading } = trpc.auth.me.useQuery();
+  // staleTime: 0 forces a fresh network request every time this mounts,
+  // preventing stale pre-login cache from causing false redirects.
+  const { data: user, isLoading, isFetched } = trpc.auth.me.useQuery(undefined, {
+    staleTime: 0,
+    retry: false,
+  });
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    // Only redirect after we have a confirmed fresh result
+    if (isFetched && !isLoading && !user) {
       navigate("/admin-login");
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, isFetched, navigate]);
 
-  if (isLoading) {
+  if (isLoading || !isFetched) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-muted-foreground">
@@ -32,9 +38,9 @@ export default function ProtectedRoute({ component: Component }: ProtectedRouteP
   }
 
   if (!user) {
-    // Redirect is handled in useEffect; render nothing in the meantime
     return null;
   }
 
   return <Component />;
 }
+
