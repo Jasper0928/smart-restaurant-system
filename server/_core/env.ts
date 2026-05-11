@@ -10,5 +10,6 @@ export const ENV = {
   lineChannelId: process.env.LINE_CHANNEL_ID ?? "",
   lineChannelSecret: process.env.LINE_CHANNEL_SECRET ?? "",
   lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
+  adminPassword: process.env.ADMIN_PASSWORD ?? "neocafe2024",
 };
 

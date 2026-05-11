@@ -3,10 +3,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LiffProvider } from "./contexts/LiffContext";
 import Home from "./pages/Home";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
 import ReservationForm from "./pages/ReservationForm";
 import WaitlistForm from "./pages/WaitlistForm";
 import CustomerWaitlist from "./pages/CustomerWaitlist";
@@ -16,8 +18,9 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
-      <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/menu"} component={Menu} />
+      <Route path={"/admin-login"} component={AdminLogin} />
+      <Route path={"/admin"} component={() => <ProtectedRoute component={AdminDashboard} />} />
       <Route path={"/reserve"} component={ReservationForm} />
       <Route path={"/waitlist"} component={WaitlistForm} />
       <Route path={"/status/:waitlistId"} component={CustomerWaitlist} />

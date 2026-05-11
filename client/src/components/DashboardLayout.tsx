@@ -18,13 +18,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Home, LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { Home, LayoutDashboard, LogOut, PanelLeft } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { trpc } from "@/lib/trpc";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "營業儀表板", path: "/admin" },
@@ -75,9 +75,17 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
-  const user = { name: "Admin 妳有咖啡", avatar: "", role: "admin", email: "admin@neocafe.com" };
-  const logout = () => { window.location.href = "/"; };
+  const { data: user } = trpc.auth.me.useQuery();
+  const utils = trpc.useUtils();
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      window.location.href = "/admin-login";
+    },
+  });
+  const logout = () => logoutMutation.mutate();
   const [location, setLocation] = useLocation();
+
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);

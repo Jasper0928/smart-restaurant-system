@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Coffee, CalendarClock, Settings } from "lucide-react";
+import { Coffee, CalendarClock } from "lucide-react";
+
 
 export default function Home() {
   return (
@@ -15,14 +16,6 @@ export default function Home() {
             </div>
             <span className="font-semibold text-lg tracking-tight">妳有咖啡 neo cafe</span>
           </div>
-          <nav>
-            <Link href="/admin">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <Settings className="w-4 h-4 mr-2" />
-                後台管理
-              </Button>
-            </Link>
-          </nav>
         </div>
       </header>
 
