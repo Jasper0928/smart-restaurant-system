@@ -580,13 +580,17 @@ export default function AdminDashboard() {
                 ) : (
                   <div className="space-y-2">
                     {[...reservationsList].sort((a: any, b: any) => {
-                      if (a.status === "cancelled" && b.status !== "cancelled") return 1;
-                      if (a.status !== "cancelled" && b.status === "cancelled") return -1;
+                      const aInactive = a.status === "cancelled" || a.status === "noshow";
+                      const bInactive = b.status === "cancelled" || b.status === "noshow";
+                      if (aInactive && !bInactive) return 1;
+                      if (!aInactive && bInactive) return -1;
                       return 0;
-                    }).map((res: any) => (
+                    }).map((res: any) => {
+                      const isInactive = res.status === "cancelled" || res.status === "noshow";
+                      return (
                       <div
                         key={res.id}
-                        className={`flex items-center justify-between p-4 border rounded-lg transition ${res.status === "cancelled" ? "opacity-50 line-through bg-muted/30" : "hover:bg-muted/50"}`}
+                        className={`flex items-center justify-between p-4 border rounded-lg transition ${isInactive ? "opacity-50 line-through bg-muted/30" : "hover:bg-muted/50"}`}
                       >
                         <div>
                           <p className="font-medium">
@@ -603,12 +607,13 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={res.status === "confirmed" ? "default" : res.status === "cancelled" ? "destructive" : "secondary"}>
+                          <Badge variant={res.status === "confirmed" ? "default" : (res.status === "cancelled" || res.status === "noshow") ? "destructive" : "secondary"}>
                             {res.status === "pending" ? "待確認" :
                              res.status === "confirmed" ? "已確認" :
-                             res.status === "cancelled" ? "已取消" : res.status}
+                             res.status === "cancelled" ? "已取消" :
+                             res.status === "noshow" ? "未到取消" : res.status}
                           </Badge>
-                          {res.status !== "cancelled" && res.customer?.lineUid && (
+                          {!isInactive && res.customer?.lineUid && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -618,7 +623,7 @@ export default function AdminDashboard() {
                               發送提醒
                             </Button>
                           )}
-                          {res.status !== "cancelled" && (
+                          {!isInactive && (
                             <Button 
                               size="sm" 
                               variant="ghost" 
@@ -631,7 +636,8 @@ export default function AdminDashboard() {
                           )}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 )}
               </CardContent>
