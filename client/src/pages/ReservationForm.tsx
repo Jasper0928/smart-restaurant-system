@@ -304,8 +304,9 @@ export default function ReservationForm() {
                         <>
                           <AlertCircle className="w-4 h-4 shrink-0" />
                           <span>
-                            該時段桌位已滿（可訂 {availability.maxReservableTables} 桌，已佔{" "}
-                            {availability.usedTables} 桌）。請選擇其他時段。
+                            {(availability as any).isClosed 
+                              ? "該日期為店休日，無法預約。" 
+                              : `該時段桌位已滿（可訂 ${availability.maxReservableTables} 桌，已佔 ${availability.usedTables} 桌）。請選擇其他時段。`}
                           </span>
                         </>
                       ) : (
@@ -334,7 +335,7 @@ export default function ReservationForm() {
                   {createReservation.isPending
                     ? "訂位處理中..."
                     : isFull
-                      ? "該時段已滿，請選擇其他時段"
+                      ? ((availability as any)?.isClosed ? "該日期為店休日" : "該時段已滿，請選擇其他時段")
                       : "確認預約"}
                 </Button>
               </form>

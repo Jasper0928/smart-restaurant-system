@@ -54,6 +54,17 @@ export const restaurants = sqliteTable("restaurants", {
 export type Restaurant = typeof restaurants.$inferSelect;
 export type InsertRestaurant = typeof restaurants.$inferInsert;
 
+export const closedDates = sqliteTable("closedDates", {
+  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  restaurantId: integer("restaurantId", { mode: "number" }).notNull(),
+  date: text("date").notNull(), // Format: YYYY-MM-DD
+  reason: text("reason"),
+  createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+export type ClosedDate = typeof closedDates.$inferSelect;
+export type InsertClosedDate = typeof closedDates.$inferInsert;
+
 export const tables = sqliteTable("tables", {
   id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
   restaurantId: integer("restaurantId", { mode: "number" }).notNull(),

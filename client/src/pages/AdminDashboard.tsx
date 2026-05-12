@@ -150,6 +150,27 @@ export default function AdminDashboard() {
     if (ratioData) setLocalRatio(ratioData.walkInReserveRatio);
   }, [ratioData]);
 
+  // Closed Dates
+  const { data: closedDates = [] } = trpc.settings.getClosedDates.useQuery({ restaurantId });
+  const [newClosedDate, setNewClosedDate] = useState("");
+  const [newClosedReason, setNewClosedReason] = useState("");
+  const addClosedDateMutation = trpc.settings.addClosedDate.useMutation({
+    onSuccess: () => {
+      toast.success("已新增店休日");
+      utils.settings.getClosedDates.invalidate();
+      setNewClosedDate("");
+      setNewClosedReason("");
+    },
+    onError: (err) => alert(`新增店休日失敗: ${err.message}`),
+  });
+  const removeClosedDateMutation = trpc.settings.removeClosedDate.useMutation({
+    onSuccess: () => {
+      toast.success("已取消店休");
+      utils.settings.getClosedDates.invalidate();
+    },
+    onError: (err) => alert(`取消店休失敗: ${err.message}`),
+  });
+
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const { data: reservationsList = [], refetch: refetchReservations } = trpc.reservation.listByDate.useQuery(
     { restaurantId, dateString: selectedDate },
@@ -763,6 +784,68 @@ export default function AdminDashboard() {
                     {updateRatioMutation.isPending ? "儲存中..." : "儲存設定"}
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>店休日管理</CardTitle>
+                <CardDescription>設定店休日期，設定後客人將無法預約該日期</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex gap-2 items-end">
+                  <div className="space-y-2 flex-1">
+                    <Label>選擇日期</Label>
+                    <Input 
+                      type="date" 
+                      value={newClosedDate} 
+                      onChange={(e) => setNewClosedDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]} // Cannot close past dates easily
+                    />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <Label>原因 (選填)</Label>
+                    <Input 
+                      placeholder="例: 員工旅遊" 
+                      value={newClosedReason} 
+                      onChange={(e) => setNewClosedReason(e.target.value)} 
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      if (!newClosedDate) return;
+                      addClosedDateMutation.mutate({ restaurantId, date: newClosedDate, reason: newClosedReason });
+                    }}
+                    disabled={!newClosedDate || addClosedDateMutation.isPending}
+                  >
+                    新增
+                  </Button>
+                </div>
+
+                {closedDates.length > 0 ? (
+                  <div className="space-y-2 mt-4">
+                    <p className="text-sm font-medium text-muted-foreground">即將到來的店休日：</p>
+                    {closedDates.filter((cd: any) => cd.date >= new Date().toISOString().split('T')[0]).map((cd: any) => (
+                      <div key={cd.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium text-destructive">{cd.date}</p>
+                          {cd.reason && <p className="text-xs text-muted-foreground">{cd.reason}</p>}
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => removeClosedDateMutation.mutate({ id: cd.id })}
+                          disabled={removeClosedDateMutation.isPending}
+                        >
+                          取消店休
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                   <p className="text-sm text-muted-foreground">目前沒有設定任何未來的店休日。</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

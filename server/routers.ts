@@ -26,7 +26,7 @@ import {
 } from "./db";
 import { generateQRCode, generateQRCodeDataUrl } from "./qrcode";
 import { calculateComprehensiveEWT, getAvailableTableCount, getConflictWindow, checkAvailability } from "./algorithms";
-import { waitlist, reservations, customers, restaurants, tables } from "../drizzle/schema";
+import { waitlist, reservations, customers, restaurants, tables, closedDates } from "../drizzle/schema";
 import { lineRouter } from "./routers/line";
 import { pushLineMessage, createReservationConfirmationMessage, createWaitlistConfirmationMessage, createSeatingNotificationMessage, createReservationReminderMessage } from "./line";
 
@@ -304,9 +304,22 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // ── Capacity check ──
+        // ── Capacity & Closed Dates check ──
         const restaurant = await getRestaurant(input.restaurantId);
         if (!restaurant) throw new Error("找不到餐廳");
+
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // Check closed dates
+        const dateStr = input.scheduledAt.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+        const isClosed = await db.select().from(closedDates).where(eq(closedDates.date, dateStr)).limit(1);
+        if (isClosed.length > 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "該日期為店休日，無法預約",
+          });
+        }
 
         const allTables = await getTablesByRestaurant(input.restaurantId);
         const totalTables = allTables.length;
@@ -328,9 +341,6 @@ export const appRouter = router({
         const qrCode = generateQRCode();
         const qrCodeUrl = await generateQRCodeDataUrl(qrCode);
         const lineQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}`;
-
-        const db = await getDb();
-        if (!db) throw new Error("Database not available");
 
         const insertResult = await db.insert(reservations).values({
           restaurantId: input.restaurantId,
@@ -454,6 +464,16 @@ export const appRouter = router({
         const restaurant = await getRestaurant(input.restaurantId);
         if (!restaurant) throw new Error("找不到餐廳");
 
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // Check closed dates
+        const dateStr = input.scheduledAt.toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const isClosed = await db.select().from(closedDates).where(eq(closedDates.date, dateStr)).limit(1);
+        if (isClosed.length > 0) {
+          return { available: false, tablesNeeded: 0, usedTables: 0, maxReservableTables: 0, remainingTables: 0, isClosed: true };
+        }
+
         const allTables = await getTablesByRestaurant(input.restaurantId);
         const totalTables = allTables.length;
         const walkInRatio = parseFloat(restaurant.walkInReserveRatio?.toString() ?? "0.40");
@@ -491,6 +511,46 @@ export const appRouter = router({
         return {
           walkInReserveRatio: restaurant ? parseFloat(restaurant.walkInReserveRatio?.toString() ?? "0.40") : 0.40,
         };
+      }),
+
+    getClosedDates: publicProcedure
+      .input(z.object({ restaurantId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        return db.select().from(closedDates).where(eq(closedDates.restaurantId, input.restaurantId)).orderBy(closedDates.date);
+      }),
+
+    addClosedDate: protectedProcedure
+      .input(
+        z.object({
+          restaurantId: z.number(),
+          date: z.string(), // YYYY-MM-DD
+          reason: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.insert(closedDates).values({
+          restaurantId: input.restaurantId,
+          date: input.date,
+          reason: input.reason,
+        });
+        return { success: true };
+      }),
+
+    removeClosedDate: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.delete(closedDates).where(eq(closedDates.id, input.id));
+        return { success: true };
       }),
   }),
 });
