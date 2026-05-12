@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Users, UtensilsCrossed, AlertCircle, Settings } from "lucide-react";
+import { Clock, Users, UtensilsCrossed, AlertCircle, Settings, Grid3X3 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -552,7 +553,55 @@ export default function AdminDashboard() {
                         </div>
                         <div className="space-y-2">
                           <Label>電話</Label>
-                          <Input value={newResPhone} onChange={(e) => setNewResPhone(e.target.value)} required />
+                          <div className="flex gap-2">
+                            <Input value={newResPhone} onChange={(e) => setNewResPhone(e.target.value)} required className="flex-1" />
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button type="button" variant="outline" size="icon" className="shrink-0">
+                                  <Grid3X3 className="w-4 h-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-64 p-3" align="end">
+                                <div className="grid grid-cols-3 gap-2">
+                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                                    <Button
+                                      key={num}
+                                      type="button"
+                                      variant="outline"
+                                      className="h-12 text-lg font-medium"
+                                      onClick={() => setNewResPhone(prev => prev + num)}
+                                    >
+                                      {num}
+                                    </Button>
+                                  ))}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-12 text-lg font-medium bg-muted/50"
+                                    onClick={() => setNewResPhone(prev => prev.slice(0, -1))}
+                                  >
+                                    ⌫
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-12 text-lg font-medium"
+                                    onClick={() => setNewResPhone(prev => prev + "0")}
+                                  >
+                                    0
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-12 text-lg font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 hover:text-destructive"
+                                    onClick={() => setNewResPhone("")}
+                                  >
+                                    C
+                                  </Button>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
