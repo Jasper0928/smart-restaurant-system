@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
@@ -663,7 +664,23 @@ export default function AdminDashboard() {
                           </div>
                           <div className="space-y-2">
                             <Label>時間</Label>
-                            <Input type="time" value={newResTime} onChange={(e) => setNewResTime(e.target.value)} required />
+                            <Select value={newResTime} onValueChange={setNewResTime} required>
+                              <SelectTrigger>
+                                <SelectValue placeholder="請選擇時間" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 17 }).map((_, i) => {
+                                  const hour = Math.floor(i / 2) + 10;
+                                  const minute = i % 2 === 0 ? "00" : "30";
+                                  const timeString = `${hour.toString().padStart(2, "0")}:${minute}`;
+                                  return (
+                                    <SelectItem key={timeString} value={timeString}>
+                                      {timeString}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                         <div className="space-y-2">
