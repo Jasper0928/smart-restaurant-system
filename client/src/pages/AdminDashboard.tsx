@@ -206,7 +206,14 @@ export default function AdminDashboard() {
   const [newResPhone, setNewResPhone] = useState("");
   const [newResName, setNewResName] = useState("");
   const [newResParty, setNewResParty] = useState(2);
+  const [newResDate, setNewResDate] = useState(selectedDate);
   const [newResTime, setNewResTime] = useState("18:00");
+
+  useEffect(() => {
+    if (isAddReservationOpen) {
+      setNewResDate(selectedDate);
+    }
+  }, [isAddReservationOpen, selectedDate]);
 
   const createReservationMutation = trpc.reservation.create.useMutation({
     onSuccess: () => {
@@ -234,7 +241,7 @@ export default function AdminDashboard() {
 
   const handleManualAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    const scheduledAt = new Date(`${selectedDate}T${newResTime}:00`);
+    const scheduledAt = new Date(`${newResDate}T${newResTime}:00`);
     createReservationMutation.mutate({
       restaurantId,
       phone: newResPhone,
@@ -651,13 +658,17 @@ export default function AdminDashboard() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>人數</Label>
-                            <Input type="number" min={1} value={newResParty} onChange={(e) => setNewResParty(parseInt(e.target.value))} required />
+                            <Label>日期</Label>
+                            <Input type="date" value={newResDate} onChange={(e) => setNewResDate(e.target.value)} required />
                           </div>
                           <div className="space-y-2">
                             <Label>時間</Label>
                             <Input type="time" value={newResTime} onChange={(e) => setNewResTime(e.target.value)} required />
                           </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>人數</Label>
+                          <Input type="number" min={1} value={newResParty} onChange={(e) => setNewResParty(parseInt(e.target.value))} required />
                         </div>
                         <Button type="submit" className="w-full" disabled={createReservationMutation.isPending}>
                           {createReservationMutation.isPending ? "新增中..." : "確認新增"}
