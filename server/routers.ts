@@ -314,7 +314,9 @@ export const appRouter = router({
         // Check closed dates
         const dateStr = input.scheduledAt.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
         const isClosed = await db.select().from(closedDates).where(eq(closedDates.date, dateStr)).limit(1);
-        if (isClosed.length > 0) {
+        const isRecurringClosed = restaurant.recurringClosedDays?.includes(input.scheduledAt.getDay()) ?? false;
+
+        if (isClosed.length > 0 || isRecurringClosed) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "該日期為店休日，無法預約",
@@ -470,7 +472,9 @@ export const appRouter = router({
         // Check closed dates
         const dateStr = input.scheduledAt.toLocaleDateString('en-CA'); // YYYY-MM-DD
         const isClosed = await db.select().from(closedDates).where(eq(closedDates.date, dateStr)).limit(1);
-        if (isClosed.length > 0) {
+        const isRecurringClosed = restaurant.recurringClosedDays?.includes(input.scheduledAt.getDay()) ?? false;
+
+        if (isClosed.length > 0 || isRecurringClosed) {
           return { available: false, tablesNeeded: 0, usedTables: 0, maxReservableTables: 0, remainingTables: 0, isClosed: true };
         }
 
@@ -550,6 +554,31 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         await db.delete(closedDates).where(eq(closedDates.id, input.id));
+        return { success: true };
+      }),
+
+    getRecurringClosedDays: publicProcedure
+      .input(z.object({ restaurantId: z.number() }))
+      .query(async ({ input }) => {
+        const restaurant = await getRestaurant(input.restaurantId);
+        return {
+          recurringClosedDays: restaurant?.recurringClosedDays ?? [],
+        };
+      }),
+
+    updateRecurringClosedDays: protectedProcedure
+      .input(
+        z.object({
+          restaurantId: z.number(),
+          days: z.array(z.number().min(0).max(6)),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(restaurants)
+          .set({ recurringClosedDays: input.days as any, updatedAt: new Date() })
+          .where(eq(restaurants.id, input.restaurantId));
         return { success: true };
       }),
   }),

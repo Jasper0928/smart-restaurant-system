@@ -9,6 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect, useRef } from "react";
 import { Lock, Unlock } from "lucide-react";
@@ -170,6 +172,29 @@ export default function AdminDashboard() {
     },
     onError: (err) => alert(`取消店休失敗: ${err.message}`),
   });
+
+  // Recurring Closed Days
+  const { data: recurringClosedDaysData } = trpc.settings.getRecurringClosedDays.useQuery({ restaurantId });
+  const [localRecurringDays, setLocalRecurringDays] = useState<number[]>([]);
+  const updateRecurringMutation = trpc.settings.updateRecurringClosedDays.useMutation({
+    onSuccess: () => {
+      toast.success("固定店休日已更新");
+      utils.settings.getRecurringClosedDays.invalidate();
+    },
+    onError: (err) => alert(`更新固定店休日失敗: ${err.message}`),
+  });
+
+  useEffect(() => {
+    if (recurringClosedDaysData) {
+      setLocalRecurringDays(recurringClosedDaysData.recurringClosedDays);
+    }
+  }, [recurringClosedDaysData]);
+
+  const toggleRecurringDay = (dayIndex: number) => {
+    setLocalRecurringDays(prev => 
+      prev.includes(dayIndex) ? prev.filter(d => d !== dayIndex) : [...prev, dayIndex]
+    );
+  };
 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const { data: reservationsList = [], refetch: refetchReservations } = trpc.reservation.listByDate.useQuery(
@@ -846,6 +871,55 @@ export default function AdminDashboard() {
                 ) : (
                    <p className="text-sm text-muted-foreground">目前沒有設定任何未來的店休日。</p>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>固定店休日設定</CardTitle>
+                <CardDescription>設定每週固定的公休星期（例如每週二、週三）。設定後，客人將無法預約該星期的日子。</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-wrap gap-6 p-4 border rounded-lg bg-muted/20">
+                  {["週日", "週一", "週二", "週三", "週四", "週五", "週六"].map((dayName, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`day-${index}`} 
+                        checked={localRecurringDays.includes(index)}
+                        onCheckedChange={() => toggleRecurringDay(index)}
+                      />
+                      <Label htmlFor={`day-${index}`} className="cursor-pointer font-medium">{dayName}</Label>
+                    </div>
+                  ))}
+                </div>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="w-full" disabled={updateRecurringMutation.isPending}>
+                      {updateRecurringMutation.isPending ? "儲存中..." : "儲存固定公休設定"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>確認更新固定店休日？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        您確定要將固定公休日設定為：
+                        <span className="font-bold block mt-2 mb-2 text-foreground text-base">
+                          {localRecurringDays.length > 0 
+                            ? localRecurringDays.sort().map(d => ["週日", "週一", "週二", "週三", "週四", "週五", "週六"][d]).join("、") 
+                            : "無固定公休"}
+                        </span>
+                        這將會影響未來所有相關星期的訂位開放狀態。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => updateRecurringMutation.mutate({ restaurantId, days: localRecurringDays })}>
+                        確定儲存
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
           </TabsContent>
