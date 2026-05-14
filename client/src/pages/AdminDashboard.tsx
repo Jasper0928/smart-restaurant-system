@@ -272,13 +272,31 @@ export default function AdminDashboard() {
     );
   }
 
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{status.restaurant.branchName || "妳有咖啡 neo cafe"}</h1>
-          <p className="text-muted-foreground mt-2">{status.restaurant.location || "台北市萬華區武昌街二段83-9號2樓"}</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{status.restaurant.branchName || "妳有咖啡 neo cafe"}</h1>
+            <p className="text-muted-foreground mt-2">{status.restaurant.location || "台北市萬華區武昌街二段83-9號2樓"}</p>
+          </div>
+          <div className="text-right flex flex-col items-end">
+            <div className="flex items-center gap-2 text-2xl font-mono tracking-tighter font-semibold">
+              <Clock className="w-6 h-6 text-primary" />
+              {currentTime.toLocaleTimeString('zh-TW', { hour12: false })}
+            </div>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+            </p>
+          </div>
         </div>
 
         {/* Key Metrics */}
