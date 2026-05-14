@@ -252,6 +252,13 @@ export default function AdminDashboard() {
     });
   };
 
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -271,13 +278,6 @@ export default function AdminDashboard() {
       </DashboardLayout>
     );
   }
-
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   return (
     <DashboardLayout>
